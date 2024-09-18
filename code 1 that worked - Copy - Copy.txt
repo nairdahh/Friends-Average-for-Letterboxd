@@ -1,0 +1,146 @@
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const getHTML = (url) => fetch(url).then(response => response.text());
+
+const getInfo = async () => {
+    await sleep(1000);
+  
+    const mainNav = document.querySelector('.main-nav');
+    if (!mainNav) {
+      await sleep(100);
+      return getInfo();
+    }
+  
+    const metaUrl = document.querySelector('meta[property="og:url"]');
+    const movieLink = metaUrl ? metaUrl.getAttribute('content') : '';
+    const urlPart = movieLink.split('film/')[1]?.split('/')[1];
+    const exclude = ['members', 'likes', 'reviews', 'ratings', 'fans', 'lists'];
+  
+    if (!exclude.includes(urlPart)) {
+      const movie = movieLink.match(/film\/(.*?)\//)[1];
+      const profileLink = Array.from(document.querySelectorAll('a')).find(a => a.textContent.trim() === 'Profile');
+      const user = profileLink ? profileLink.getAttribute('href') : '';
+      
+      if (user) {
+        return [user, movie];
+      }
+    }
+    return null;
+};
+
+const getContent = async (url, userMovie) => {
+    const ratingList = [];
+    let personCount = 0;
+    let likeCount = 0;
+
+    while (true) {
+        if (url) {
+            const html = await getHTML(url);
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const tbody = doc.querySelector('tbody');
+            
+            if (tbody) {
+                const rows = tbody.querySelectorAll('tr');
+                rows.forEach(row => {
+                    const person = row.querySelector('.name')?.getAttribute('href');
+                    if (person !== userMovie[0]) {
+                        const ratingClass = row.querySelector('.rating')?.getAttribute('class');
+                        personCount += 1;
+                        const like = row.querySelector('.icon-liked');
+                        if (like) likeCount += 1;
+                        if (ratingClass) {
+                            const rating = parseInt(ratingClass.split('-')[1], 10);
+                            ratingList.push(rating);
+                        }
+                    }
+                });
+
+                const nextPageLink = doc.querySelector('.next')?.parentElement?.getAttribute('href');
+                if (nextPageLink) {
+                    url = `https://letterboxd.com${nextPageLink}`;
+                } else {
+                    prepareContent(ratingList, personCount, likeCount, userMovie);
+                    return;
+                }
+            } else {
+                prepareContent(ratingList, personCount, likeCount, userMovie);
+                return;
+            }
+        }
+    }
+};
+
+const prepareContent = (ratingList, personCount, likeCount, userMovie) => {
+    const votes = ratingList.length;
+    const avg = votes === 0 ? '–.–' : (ratingList.reduce((sum, rating) => sum + rating, 0) / (votes * 2)).toFixed(1);
+
+    const hrefHead = `${userMovie[0]}friends/film/${userMovie[1]}`;
+    const hrefLikes = `${userMovie[0]}friends/film/${userMovie[1]}/likes/`;
+
+    const ratingCount = Array(10).fill(0);
+    ratingList.forEach(rating => {
+        if (rating >= 1 && rating <= 10) {
+            ratingCount[rating - 1]++;
+        }
+    });
+
+    const maxRating = Math.max(...ratingCount);
+    const maxHeight = 100; // Maximum height of the bars in pixels
+    const barWidth = 13; // Width of each bar in pixels
+    const spacing = 1; // Space between bars
+
+    const relativeHeight = ratingCount.map(count => Math.max((count / maxRating) * maxHeight, 1)); // Calculate height based on percentage
+    const percentRating = ratingCount.map(count => Math.round((count / votes) * 100));
+
+    const stars = ['half-★', '★', '★½', '★★', '★★½', '★★★', '★★★½', '★★★★', '★★★★½', '★★★★★'];
+    const ratingHtml = ratingCount.map((count, i) => `
+        <li class="rating-histogram-bar" style="width: ${barWidth}px; height: ${relativeHeight[i]}px; left: ${i * (barWidth + spacing)}px; background-color: green;">
+          <a href="${hrefHead}" class="ir tooltip" data-original-title="${count} ${stars[i]} ${count > 1 ? 'ratings' : 'rating'} (${percentRating[i]}%)">
+            ${count} ${stars[i]} ${count > 1 ? 'ratings' : 'rating'}
+          </a>
+        </li>
+    `).join('');
+
+    const html = `
+        <section class="section ratings-histogram-chart">
+          <h2 class="section-heading">
+            <a href="${hrefHead}" title="">Ratings from Friends</a>
+          </h2>
+          <a href="${hrefLikes}" class="all-link more-link">${likeCount} ${likeCount === 1 ? 'like' : 'likes'}</a>
+          <span class="average-rating">
+            <a href="${hrefHead}" class="tooltip display-rating -highlight" data-original-title="Average of ${avg} based on ${votes} ${votes === 1 ? 'rating' : 'ratings'}">${avg}</a>
+          </span>
+          <div class="rating-histogram clear rating-histogram-exploded" style="position: relative; width: ${ratingCount.length * (barWidth + spacing) - spacing}px; height: ${maxHeight}px;">
+            <span class="rating-green rating-green-tiny rating-1">
+              <span class="rating rated-1">★</span>
+            </span>
+            <ul>
+              ${ratingHtml}
+            </ul>
+            <span class="rating-green rating-green-tiny rating-5">
+              <span class="rating rated-10">★★★★★</span>
+            </span>
+          </div>
+        </section>
+    `;
+
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+        sidebar.insertAdjacentHTML('beforeend', html);
+    }
+};
+
+
+
+const main = async () => {
+    const userMovie = await getInfo();
+    if (userMovie) {
+        const user = userMovie[0];
+        const movie = userMovie[1];
+        const newURL = `https://letterboxd.com${user}friends/film/${movie}`;
+        await getContent(newURL, userMovie);
+    }
+};
+
+main();
