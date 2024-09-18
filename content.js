@@ -98,15 +98,14 @@ const prepareContent = (ratingList, personCount, likeCount, userMovie) => {
 
     const ratingHtml = ratingCount.map((count, i) => `
         <li class="rating-histogram-bar" style="width: ${barWidth}px; height: ${relativeHeight[i]}px; left: ${i * (barWidth + spacing)}px; background-color: #445566; border-radius: 2px 2px 0px 0px;">
-          <a href="${hrefHead}" class="ir tooltip" data-original-title="${count} ${i + 1}-star rating${count > 1 ? 's' : ''} (${percentRating[i]}%)">
-            ${count} ${i + 1}-star rating${count > 1 ? 's' : ''}
-          </a>
+            <a href="${hrefHead}" class="ir tooltip" data-original-title="${count} ${i + 1}-star rating${count > 1 ? 's' : ''} (${percentRating[i]}%)" style="display: block; height: 100%;">
+                ${count} ${i + 1}-star rating${count > 1 ? 's' : ''}
+            </a>
         </li>
     `).join('');
 
     const histogramWidth = ratingCount.length * (barWidth + spacing); // Dynamic width for the histogram bars
-    
-    const histogramLeftMargin = 15; // Modify this value to adjust how far left the histogram is positioned
+    const histogramLeftMargin = 15; // Adjust how far left the histogram is positioned
 
     const html = `
         <section class="section ratings-histogram-chart" style="margin-top: 2.46153846rem;">
@@ -147,6 +146,7 @@ const prepareContent = (ratingList, personCount, likeCount, userMovie) => {
         });
     }
 };
+
 
 
 
