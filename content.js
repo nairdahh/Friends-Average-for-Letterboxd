@@ -111,7 +111,7 @@ const prepareContent = (ratingList, personCount, likeCount, userMovie) => {
     const html = `
         <section class="section ratings-histogram-chart" style="margin-top: 2.46153846rem;">
           <h2 class="section-heading">
-            <a href="${hrefHead}" title="">Friends Rating</a>
+            <a href="${hrefHead}" title="">Friends' Rating</a>
           </h2>
           <a href="${hrefLikes}" class="all-link more-link">${likeCount} ${likeCount === 1 ? 'like' : 'likes'}</a>
           <span class="average-rating">
