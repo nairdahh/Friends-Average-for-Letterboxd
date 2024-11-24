@@ -1,4 +1,4 @@
-# Friends' Average Rating for letterboxd
+# Friends' Average Rating for Letterboxd
  
 Adds an extra histogram displaying ratings and the average rating based solely on your friends' reviews on Letterboxd. It appears below the default histogram and has the same functionality.
 
