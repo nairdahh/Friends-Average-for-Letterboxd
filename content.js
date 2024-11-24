@@ -7,22 +7,22 @@ let sleep = function (ms) {
 
 // Function to fetch the HTML content of a given URL.
 let getHTML = function (url) {
-    return fetch(url).then(result => { return result.text() });
+    return fetch(url).then(result => { 
+        return result.text();
+    });
 };
 
 
 
 // Asynchronous function to retrieve the username and movie from the current Letterboxd page.
 // Continuously checks the page until the necessary elements are found.
-
 let getinfo = async () => {
     var main_nav = $('.main-nav').html();
     if (typeof main_nav == 'undefined') {
         // If main navigation is not found, wait and try again.
         await sleep(100);
-        getinfo();
-    }
-    else {
+        return getinfo();
+    } else {
         let movie_link = $('meta[property="og:url"]').attr('content');
         url_part = movie_link.split('film/')[1].split('/')[1];
         let exclude = ['members', 'likes', 'reviews', 'ratings', 'fans', 'lists'];
@@ -34,10 +34,10 @@ let getinfo = async () => {
                 return [user, movie];
             }
         }
+        
         return null;
     }
-}
-
+};
 
 
 // Asynchronous function to retrieve content from a given URL and process friend ratings.
@@ -45,20 +45,24 @@ let getinfo = async () => {
 
 // Initialize variables to store raitng data
 let getContent = async (url, user_movie) => {
+    
     var rating_list = [];
     var person_count = 0;
     var like_count = 0;
 
     while (true) {
         if (url !== 'undefined') {
+            
             let html = getHTML(url);
 
-            table = await html.then(function (html) {
-                let tbody = $(html).find('tbody').html();
+            let table = await html.then(function (html) {
                 
+                let tbody = $(html).find('tbody').html();
+
                 if (typeof tbody !== 'undefined') {
-                    let tableHtml = '<tbody>' + tbody + '</tbody>';
                     
+                    let tableHtml = '<tbody>' + tbody + '</tbody>';
+
                     $(tableHtml).find('tr').each(function () {
                         // Extract person and rating detailt from each row
                         let person = $(this).find(".name").attr('href');
@@ -66,38 +70,41 @@ let getContent = async (url, user_movie) => {
                             let rating = $(this).find(".rating").attr('class');
                             person_count += 1;
 
-                            // Count likes
                             let like = $(this).find('.icon-liked').html();
                             if (typeof like !== 'undefined') {
                                 like_count += 1;
                             }
 
-                            // extract and store rating
                             if (typeof rating !== 'undefined') {
                                 rating = rating.split('-')[1];
                                 rating_list.push(Number(rating));
                             }
                         }
                     });
+                } else {
+                    
                 }
 
                 // check for the link to the next page
                 let nextPageLoc = $(html).find('.next').parent().html();
                 let nextPage = $(nextPageLoc).attr('href');
 
-                // Return data and next page URL
+                // Return data and next page URL                
                 return [nextPage, rating_list, person_count, like_count];
             });
 
             if (typeof table[0] == 'undefined') {
-                if (table[1].length == 0 && table[3] == 0) {
+                
+                if (table[1].length === 0 && table[3] === 0) {
+                    
                     break; // Exit loop if no ratings of likes
                 } else {
+                    
                     prepContent(table, user_movie);
                     return true;
                 }
             } else {
-                //Update URL for next page
+                 //Update URL for next page
                 url = 'https://letterboxd.com' + table[0];
             }
         }
@@ -107,12 +114,11 @@ let getContent = async (url, user_movie) => {
 
 
 
-/**
- * Prepares the content for the histogram display.
- * Calculates ratings, averages, and generates the HTML structure for the histogram.
- * @param {Array} table - An array containing the next page URL, rating list, person count, and like count.
- * @param {Array<string>} user_movie - An array containing the username and movie title.
- */
+ // Prepares the content for the histogram display.
+ // Calculates ratings, averages, and generates the HTML structure for the histogram.
+ // @param {Array} table - An array containing the next page URL, rating list, person count, and like count.
+ // @param {Array<string>} user_movie - An array containing the username and movie title.
+
 let prepContent = function (table, user_movie) {
     // Extract the rating list and count the number of votes
     rating_list = table[1];
@@ -134,6 +140,7 @@ let prepContent = function (table, user_movie) {
         avg_2 = avg.toFixed(2); // Two decimal places
     }
 
+    
     // Prepare URLs and tooltip data
     href_head = `${user_movie[0]}friends/film/${user_movie[1]}`;
     href_likes = `${user_movie[0]}friends/film/${user_movie[1]}/likes/`;
@@ -310,19 +317,19 @@ let prepContent = function (table, user_movie) {
 
     // Inject the updated HTML content into the page
     injectContent(html);
-
     return true;
-
-}
+};
 
 
 
 // Injects the prepared HTML content into the sidebar.
 let injectContent = function (html) {
+    
     path = $('.sidebar');
     $(html).appendTo(path);
+    
     return true;
-}
+};
 
 
 
@@ -354,36 +361,41 @@ let getWidths = async () => {
     const specialWidth = $('#aad').width();
     widths.push(specialWidth);
 
-    // Hide the popup after measurement
+     // Hide the popup after measurement
     $('#popup1').css('display', 'none');
-
+    
     return widths;
 };
 
 
 
-/**
- * Main function to coordinate fetching and displaying ratings.
- * Calls other functions to gather data and inject the histogram into the page.
- * @returns {Promise<Array<number>|undefined>} - A promise that resolves with the widths of tooltips.
- */
+
+    // Main function to coordinate fetching and displaying ratings.
+    //Calls other functions to gather data and inject the histogram into the page.
+    //@returns {Promise<Array<number>|undefined>} - A promise that resolves with the widths of tooltips.
+
 let main = async () => {
+    
     var user_movie = await getinfo();
     if (user_movie !== null && typeof user_movie !== 'undefined') {
+    
         var user = user_movie[0];
         var movie = user_movie[1];
         let newURL = 'https://letterboxd.com' + user + 'friends/film/' + movie;
+    
         browser.runtime.sendMessage({ content: newURL });
-        promise = await getContent(newURL, user_movie);
-        widths = await getWidths();
+        let promise = await getContent(newURL, user_movie);
+        let widths = await getWidths();
         return widths;
+    } else {
+    
     }
-}
+};
 
 
-
-// Run the main function and store the widths of tooltips.
+// Run the main function.
 widths = main();
+
 var ids = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'a10', 'a11'];
 
 
