@@ -128,6 +128,7 @@ let prepContent = function (table, user_movie) {
     if (votes === 0) {
         avg_1 = '–.–'; // Placeholder
         avg_2 = '–.–'; // Placeholder
+        std_dev = '–.–'; // Added for standard deviation
     } else {
         let sum = 0;
         // Sum up all the ratings
@@ -138,8 +139,14 @@ let prepContent = function (table, user_movie) {
         avg = sum / (votes * 2);
         avg_1 = avg.toFixed(1); // One decimal place
         avg_2 = avg.toFixed(2); // Two decimal places
+        
+        // Added: Calculate standard deviation
+        let squaredDifferences = 0;
+        for (var r of rating_list) {
+            squaredDifferences += Math.pow((r/2) - avg, 2);
+        }
+        std_dev = Math.sqrt(squaredDifferences / votes).toFixed(2);
     }
-
     
     // Prepare URLs and tooltip data
     href_head = `${user_movie[0]}friends/film/${user_movie[1]}`;
@@ -151,7 +158,7 @@ let prepContent = function (table, user_movie) {
         rating = 'ratings';
     }
     
-    data_popup = `Average of ${avg_2} based on ${votes} ${rating}`;
+    data_popup = `Average of ${avg_2} (σ=${std_dev}) based on ${votes} ${rating}`;
 
     // Initialize an array to hold the count of each rating value
     let rating_count = [];
@@ -275,6 +282,8 @@ let prepContent = function (table, user_movie) {
         <div id="aad" class="twipsy-inner"></div>
         </div>
     </section>
+    
+    
     `;
 
     // Combine all parts
