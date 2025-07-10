@@ -1,20 +1,16 @@
 {
-    "manifest_version": 2,
-    "name": "Friends' Average Rating for Letterboxd",
-    "version": "1.1",
-    "description": "Displays movie average rating from friends on Letterboxd",
-    "permissions": [
-      "activeTab",
-      "storage"
-    ],
-    "content_scripts": [
-      {
-        "matches": ["*://letterboxd.com/film/*"],
-        "js": ["jquery/jquery-3.7.1.min.js", "content.js"]
-      }
-    ],
-    "browser_action": {
-      "default_icon": "icons/icon.png"
+  "manifest_version": 2,
+  "name": "Friends' Average Rating for Letterboxd",
+  "version": "1.2",
+  "description": "Displays movie average rating from friends on Letterboxd",
+  "permissions": ["activeTab", "storage"],
+  "content_scripts": [
+    {
+      "matches": ["*://letterboxd.com/film/*"],
+      "js": ["jquery/jquery-3.7.1.min.js", "content.js"]
     }
+  ],
+  "browser_action": {
+    "default_icon": "icons/icon.png"
   }
-  
+}
