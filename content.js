@@ -42,7 +42,6 @@ let getinfo = async () => {
 let getContent = async (url, user_movie) => {
   var rating_list = [];
   var person_count = 0;
-  var like_count = 0;
 
   while (true) {
     if (url !== "undefined") {
@@ -74,22 +73,39 @@ let getContent = async (url, user_movie) => {
         let nextPage = $(nextPageLoc).attr("href");
 
         // Return data and next page URL
-        return [nextPage, rating_list, person_count, like_count];
+        return [nextPage, rating_list, person_count];
       });
 
       if (typeof table[0] == "undefined") {
-        if (table[1].length === 0 && table[3] === 0) {
-          break; // Exit loop if no ratings of likes
+        if (table[1].length === 0) {
+          break;
         } else {
-          prepContent(table, user_movie);
-          return true;
+          return table[1];
         }
       } else {
-        //Update URL for next page
         url = "https://letterboxd.com" + table[0];
       }
     }
   }
+  return [];
+};
+
+// Fetches the number of friends who liked the film by paginating through the likes page.
+let getLikeCount = async (likesUrl) => {
+  let count = 0;
+  let url = likesUrl;
+
+  while (url) {
+    let html = await getHTML(url);
+    let $html = $(html);
+    count += $html.find(".person-summary").length;
+
+    let nextPageLoc = $html.find(".next").parent().html();
+    let nextPage = $(nextPageLoc).attr("href");
+    url = nextPage ? "https://letterboxd.com" + nextPage : null;
+  }
+
+  return count;
 };
 
 // Prepares the content for the histogram display.
@@ -104,18 +120,16 @@ let prepContent = function (table, user_movie) {
 
   // Calculate the average rating
   if (votes === 0) {
-    avg_1 = "–.–"; // Placeholder
-    avg_2 = "–.–"; // Placeholder
+    avg_1 = "–.–";
+    avg_2 = "–.–";
   } else {
     let sum = 0;
-    // Sum up all the ratings
     for (var r of rating_list) {
       sum += r;
     }
-    // Compute the average rating and format it
     avg = sum / (votes * 2);
-    avg_1 = avg.toFixed(1); // One decimal place
-    avg_2 = avg.toFixed(2); // Two decimal places
+    avg_1 = avg.toFixed(1);
+    avg_2 = avg.toFixed(2);
   }
 
   // Prepare URLs and tooltip data
@@ -134,7 +148,6 @@ let prepContent = function (table, user_movie) {
   let rating_count = [];
   for (let i = 1; i < 11; i++) {
     let count = 0;
-    // Count the number of occurrences for each rating value
     for (rating of rating_list) {
       if (rating === i) {
         count += 1;
@@ -143,31 +156,17 @@ let prepContent = function (table, user_movie) {
     rating_count.push(count);
   }
 
-  // Find the maximum rating count to normalize the heights
+  // Find the maximum rating count to normalize the bar heights (0–1 scale)
   let max_rating = Math.max(...rating_count);
 
-  // Initialize arrays to hold relative heights and percentage ratings
-  let relative_rating = [];
+  // Calculate percentage of votes for each rating
   let percent_rating = [];
-
-  // Calculate the relative height for each rating bar and percentage rating
-  for (rating of rating_count) {
-    let height = (rating / max_rating) * 44.0;
-    // Ensure the height is not less than 1 and is finite
-    if (height < 1 || height === Number.POSITIVE_INFINITY || isNaN(height)) {
-      height = 1;
-    }
-    relative_rating.push(height);
-
-    // Calculate the percentage of votes for each rating
-    let percentage = Math.round((rating / votes) * 100);
+  for (let rc of rating_count) {
+    let percentage = votes > 0 ? Math.round((rc / votes) * 100) : 0;
     percent_rating.push(percentage);
   }
 
-  // Array to store the formatted rating strings
-  let rat = [];
-
-  // Array of star ratings
+  // Array of star labels matching Letterboxd's rating values 1–10
   const stars = [
     "half-★",
     "★",
@@ -181,128 +180,65 @@ let prepContent = function (table, user_movie) {
     "★★★★★",
   ];
 
-  // Iterate through rating counts and build the rating strings
+  // Build tooltip strings and table rows for each rating
+  let rat = [];
+  let rows = "";
   for (let i = 0; i < 10; i++) {
-    // Determine the correct term based on the rating count
     const ratingTerm = rating_count[i] === 1 ? "rating" : "ratings";
-
-    // Create the formatted rating string
     const ratingString = `${rating_count[i]} ${stars[i]} ${ratingTerm} (${percent_rating[i]}%)`;
-
-    // Add the formatted string to the array
     rat.push(ratingString);
+
+    // --value is the normalized height (0 to 1), matching Letterboxd's new chart format
+    const value = max_rating > 0 ? rating_count[i] / max_rating : 0;
+    rows += `
+      <tr class="column" style="--value: ${value}">
+        <th scope="row" class="_sr-only">${stars[i]}</th>
+        <td class="cell">
+          <a href="${href_head}" id="a${i + 1}" class="barcolumn tooltip" data-original-title="${ratingString}">
+            <span class="_sr-only">${rating_count[i]} (${percent_rating[i]}%)</span>
+            <span class="bar"><span class="fill"></span></span>
+          </a>
+        </td>
+      </tr>`;
   }
 
-  // Build HTML structure for the histogram.
-
-  // Section with heading and links
-  let str1 = `
-    <section class="section ratings-histogram-chart">
-        <h2 class="section-heading">
-            <a href="" id="aaa" title="">Friends' Rating</a>
+  // Build the full section HTML matching Letterboxd's current structure
+  let str = `
+    <section class="section ratings-histogram-chart" id="friends-rating-section">
+      <style>#friends-rating-section .glyph.stars path { fill: #cba6f7; }</style>
+      <header class="section-header -divider -spaced-loose">
+        <h2 class="section-heading -omitdivider heading">
+          <a href="${href_head}">Friends' Rating</a>
         </h2>
-        <a href="" id="aab" class="all-link more-link"></a>
-        <span class="average-rating" itemprop="aggregateRating" itemscope="" itemtype="http://schema.org/AggregateRating">
-            <a href="" id="a11" class="tooltip display-rating -highlight" data-popup=""></a>
-        </span>
-        <div class="rating-histogram clear rating-histogram-exploded">
-        <span class="rating-green rating-green-tiny rating-1">
-            <span class="rating rated-2">★</span>
-        </span>
-        <ul>
-    `;
-
-  // Histogram bars
-  let str2 = `
-            <li id="li1" class="rating-histogram-bar" style="width: 15px; left: 0px">
-                <a href="" id="a1" class="ir tooltip"></a>
-            </li>
-            <li id="li2" class="rating-histogram-bar" style="width: 15px; left: 16px">
-                <a href="" id="a2" class="ir tooltip"></a>
-            </li>
-            <li id="li3" class="rating-histogram-bar" style="width: 15px; left: 32px">
-                <a href="" id="a3" class="ir tooltip"></a>
-            </li>
-            <li id="li4" class="rating-histogram-bar" style="width: 15px; left: 48px">
-                <a href="" id="a4" class="ir tooltip"></a>
-            </li>
-            <li id="li5" class="rating-histogram-bar" style="width: 15px; left: 64px">
-                <a href="" id="a5" class="ir tooltip"></a>
-            </li>
-            <li id="li6" class="rating-histogram-bar" style="width: 15px; left: 80px">
-                <a href="" id="a6" class="ir tooltip"></a>
-            </li>
-            <li id="li7" class="rating-histogram-bar" style="width: 15px; left: 96px">
-                <a href="" id="a7" class="ir tooltip"></a>
-            </li>
-            <li id="li8" class="rating-histogram-bar" style="width: 15px; left: 112px;">
-                <a href="" id="a8" class="ir tooltip"></a>
-            </li>
-            <li id="li9" class="rating-histogram-bar" style="width: 15px; left: 128px">
-                <a href="" id="a9" class="ir tooltip"></a>
-            </li>
-            <li id="li10" class="rating-histogram-bar" style="width: 15px; left: 144px">
-                <a href="" id="a10" class="ir tooltip"></a>
-            </li>
-        </ul>
-        <span class="rating-green rating-green-tiny rating-5">
-            <span class="rating rated-10">★★★★★</span>
-        </span>
+        <aside class="aside">
+          <div class="section-accessories">
+            <a href="${href_likes}" class="accessory">${table[3] === 1 ? "1 like" : `${table[3]} likes`}</a>
+          </div>
+        </aside>
+      </header>
+      <div class="rating-histogram">
+        <div class="layout">
+          <svg xmlns="http://www.w3.org/2000/svg" role="graphics-symbol" class="glyph stars -start -rating" width="9" height="9" viewBox="0 0 9 9" aria-label="★"><title>★</title><path transform="translate(0, 0)" fill-rule="evenodd" d="M5.065.45c-.22-.61-.95-.59-1.14 0l-.75 2.57H.705c-.73 0-.96.62-.37 1.07l1.99 1.53-.76 2.49c-.22.73.34 1.16.93.71l2-1.53 2 1.53c.59.45 1.15.02.93-.71l-.76-2.49 1.99-1.53c.59-.45.39-1.07-.33-1.07h-2.48z"></path></svg>
+          <table class="chart">
+            <caption class="_sr-only">Friends Rating Distribution</caption>
+            <thead class="_sr-only">
+              <tr><th scope="col">Rating</th><th scope="col">Count</th></tr>
+            </thead>
+            <tbody class="plot">
+              ${rows}
+            </tbody>
+          </table>
+          <svg xmlns="http://www.w3.org/2000/svg" role="graphics-symbol" class="glyph stars -end -rating" width="49" height="9" viewBox="0 0 49 9" aria-label="★★★★★"><title>★★★★★</title><path transform="translate(0, 0)" fill-rule="evenodd" d="M5.065.45c-.22-.61-.95-.59-1.14 0l-.75 2.57H.705c-.73 0-.96.62-.37 1.07l1.99 1.53-.76 2.49c-.22.73.34 1.16.93.71l2-1.53 2 1.53c.59.45 1.15.02.93-.71l-.76-2.49 1.99-1.53c.59-.45.39-1.07-.33-1.07h-2.48z"></path><path transform="translate(10, 0)" fill-rule="evenodd" d="M5.065.45c-.22-.61-.95-.59-1.14 0l-.75 2.57H.705c-.73 0-.96.62-.37 1.07l1.99 1.53-.76 2.49c-.22.73.34 1.16.93.71l2-1.53 2 1.53c.59.45 1.15.02.93-.71l-.76-2.49 1.99-1.53c.59-.45.39-1.07-.33-1.07h-2.48z"></path><path transform="translate(20, 0)" fill-rule="evenodd" d="M5.065.45c-.22-.61-.95-.59-1.14 0l-.75 2.57H.705c-.73 0-.96.62-.37 1.07l1.99 1.53-.76 2.49c-.22.73.34 1.16.93.71l2-1.53 2 1.53c.59.45 1.15.02.93-.71l-.76-2.49 1.99-1.53c.59-.45.39-1.07-.33-1.07h-2.48z"></path><path transform="translate(30, 0)" fill-rule="evenodd" d="M5.065.45c-.22-.61-.95-.59-1.14 0l-.75 2.57H.705c-.73 0-.96.62-.37 1.07l1.99 1.53-.76 2.49c-.22.73.34 1.16.93.71l2-1.53 2 1.53c.59.45 1.15.02.93-.71l-.76-2.49 1.99-1.53c.59-.45.39-1.07-.33-1.07h-2.48z"></path><path transform="translate(40, 0)" fill-rule="evenodd" d="M5.065.45c-.22-.61-.95-.59-1.14 0l-.75 2.57H.705c-.73 0-.96.62-.37 1.07l1.99 1.53-.76 2.49c-.22.73.34 1.16.93.71l2-1.53 2 1.53c.59.45 1.15.02.93-.71l-.76-2.49 1.99-1.53c.59-.45.39-1.07-.33-1.07h-2.48z"></path></svg>
+          <a href="${href_head}" id="a11" class="averagerating tooltip" data-original-title="${data_popup}">${avg_1}</a>
         </div>
-    `;
-
-  // Tooltip popup
-  let str3 = `
-        <div class="twipsy fade above in" id="popup1" style="display: none">
+      </div>
+      <div class="twipsy fade above in" id="popup1" style="display: none">
         <div id="popup2" class="twipsy-arrow" style="left: 50%;"></div>
         <div id="aad" class="twipsy-inner"></div>
-        </div>
-    </section>
-    `;
+      </div>
+    </section>`;
 
-  // Combine all parts
-  let str = str1 + str2 + str3;
-
-  // Parse the HTML string into a jQuery object
   let html = $.parseHTML(str);
-
-  // Update links and text content for specific elements
-  const updateLinksAndText = function () {
-    // Set href attributes
-    $(html).find("#aaa").attr("href", href_head);
-    $(html).find("#aab").attr("href", href_likes);
-    $(html).find("#a11").attr({
-      href: href_head,
-      "data-popup": data_popup,
-    });
-
-    // Set text content for likes
-    let likeText = table[3] === 1 ? "1 like" : `${table[3]} likes`;
-    $(html).find("#aab").text(likeText);
-    $(html).find("#a11").text(avg_1);
-  };
-
-  // Update ratings histogram bars
-  const updateHistogramBars = function () {
-    for (let i = 1; i <= 10; i++) {
-      let id = `#a${i}`;
-      let barHeight = relative_rating[i - 1];
-      let barText = rat[i - 1];
-      let barIcon = `<i id="i${i}" style="height: ${barHeight}px;"></i>`;
-
-      $(html)
-        .find(id)
-        .attr("href", href_head)
-        .text(barText)
-        .append($.parseHTML(barIcon));
-    }
-  };
-
-  // Execute update functions
-  updateLinksAndText();
-  updateHistogramBars();
-
-  // Inject the updated HTML content into the page
   injectContent(html);
   return true;
 };
@@ -331,14 +267,14 @@ let getWidths = async () => {
   // Measure width for each tooltip
   for (const id of ids) {
     const elementId = `#${id}`;
-    const text = $(elementId).text();
+    const text = $(elementId).attr("data-original-title") || $(elementId).text();
     $("#aad").text(text);
     const width = $("#aad").width();
     widths.push(width);
   }
 
   // Measure width for the special tooltip (#a11)
-  const specialText = $("#a11").data("popup");
+  const specialText = $("#a11").attr("data-original-title") || $("#a11").data("popup");
   $("#aad").text(specialText);
   const specialWidth = $("#aad").width();
   widths.push(specialWidth);
@@ -358,13 +294,21 @@ let main = async () => {
   if (user_movie !== null && typeof user_movie !== "undefined") {
     var user = user_movie[0];
     var movie = user_movie[1];
-    let newURL = "https://letterboxd.com" + user + "friends/film/" + movie;
+    let ratingsURL = "https://letterboxd.com" + user + "friends/film/" + movie;
+    let likesURL = "https://letterboxd.com" + user + "friends/film/" + movie + "/likes/";
 
-    browser.runtime.sendMessage({ content: newURL });
-    let promise = await getContent(newURL, user_movie);
-    let widths = await getWidths();
-    return widths;
-  } else {
+    browser.runtime.sendMessage({ content: ratingsURL });
+
+    let [rating_list, like_count] = await Promise.all([
+      getContent(ratingsURL, user_movie),
+      getLikeCount(likesURL),
+    ]);
+
+    if (rating_list && rating_list.length > 0) {
+      prepContent([null, rating_list, 0, like_count], user_movie);
+      let widths = await getWidths();
+      return widths;
+    }
   }
 };
 
@@ -381,23 +325,24 @@ document.addEventListener(
   function (e) {
     const element = e.srcElement;
     const singleId = $(element).attr("id");
-    const parentId = $(element).parent().attr("id");
+    // Use closest() to find the nearest ancestor with a matching ID (handles nested spans inside <a>)
+    const closestId = $(element).closest("[id]").attr("id");
+    const activeId = ids.includes(singleId) ? singleId : (ids.includes(closestId) ? closestId : null);
 
     // Check if the hovered element is one of the rating bars or the special element
-    if (ids.includes(parentId) || ids.includes(singleId)) {
+    if (activeId) {
       let text, position, arrow;
       let liNumber;
+      const $active = $("#" + activeId);
 
-      if (singleId === "a11") {
-        text = $(element).data("popup");
+      if (activeId === "a11") {
+        text = $active.attr("data-original-title") || $active.data("popup");
         liNumber = 11;
         position = -((Number(widths[liNumber - 1]) * 3) / 4) + 190;
         arrow = "left: 145px";
       } else {
-        text = $(element).text() || $(element).parent().text();
-        liNumber =
-          Number(singleId.replace("a", "")) ||
-          Number(parentId.replace("a", ""));
+        text = $active.attr("data-original-title") || $active.text();
+        liNumber = Number(activeId.replace("a", ""));
         position = -(Number(widths[liNumber - 1]) / 2) + liNumber * 16 - 7.5;
         arrow = "left: 50%";
       }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Friends' Average Rating for Letterboxd",
-  "version": "1.2",
+  "version": "1.3",
   "description": "Displays movie average rating from friends on Letterboxd",
   "permissions": ["activeTab", "storage"],
   "content_scripts": [
